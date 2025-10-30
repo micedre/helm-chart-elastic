@@ -1,0 +1,72 @@
+---
+# ConfigMap for Elasticsearch configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: elasticsearch
+data:
+  elasticsearch.yml: |
+    # Default Elasticsearch configuration
+    cluster.name: ${cluster.name}
+    node.name: ${node.name}
+    network.host: ${network.host}
+
+    # Discovery configuration
+    discovery.seed_hosts: ${discovery.seed_hosts}
+    {{- if .Values.elasticsearch.clusterMode }}
+    cluster.initial_master_nodes: ${cluster.initial_master_nodes}
+    {{- else }}
+    discovery.type: ${discovery.type}
+    {{- end }}
+
+    # Path configuration
+    path.data: /usr/share/elasticsearch/data
+    path.logs: /usr/share/elasticsearch/logs
+
+    # Security configuration
+    {{- if .Values.elasticsearch.security.enabled }}
+    xpack.security.enabled: ${xpack.security.enabled}
+    {{- if .Values.elasticsearch.security.tls.enabled }}
+    xpack.security.transport.ssl.enabled: ${xpack.security.transport.ssl.enabled}
+    xpack.security.transport.ssl.verification_mode: ${xpack.security.transport.ssl.verification_mode}
+    xpack.security.transport.ssl.keystore.path: ${xpack.security.transport.ssl.keystore.path}
+    xpack.security.transport.ssl.truststore.path: ${xpack.security.transport.ssl.truststore.path}
+    xpack.security.http.ssl.enabled: ${xpack.security.http.ssl.enabled}
+    xpack.security.http.ssl.keystore.path: ${xpack.security.http.ssl.keystore.path}
+    {{- end }}
+    {{- else }}
+    xpack.security.enabled: ${xpack.security.enabled}
+    {{- end }}
+
+    # Additional custom configuration
+    {{- with .Values.elasticsearch.config }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- if and .Values.elasticsearch.security.enabled .Values.elasticsearch.security.tls.enabled .Values.elasticsearch.security.tls.useSelfSignedCerts }}
+---
+# ConfigMap for certificate generation
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-cert-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: elasticsearch
+data:
+  instances.yml: |
+    instances:
+    {{- range $i := until (int .Values.elasticsearch.replicas) }}
+      - name: {{ include "elasticsearch.fullname" $ }}-{{ $i }}
+        dns:
+          - {{ include "elasticsearch.fullname" $ }}-{{ $i }}.{{ include "elasticsearch.masterService" $ }}.{{ $.Release.Namespace }}.svc.cluster.local
+          - {{ include "elasticsearch.fullname" $ }}-{{ $i }}
+          - localhost
+        ip:
+          - 127.0.0.1
+    {{- end }}
+{{- end }}

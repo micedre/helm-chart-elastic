@@ -1,0 +1,62 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+Elasticsearch has been deployed in {{ if .Values.elasticsearch.clusterMode }}cluster mode with {{ .Values.elasticsearch.replicas }} nodes{{ else }}single-node mode{{ end }}.
+
+To access Elasticsearch:
+
+{{- if .Values.elasticsearch.security.enabled }}
+1. Get the elastic user password:
+
+   kubectl get secret {{ include "elasticsearch.fullname" . }}-credentials -n {{ .Release.Namespace }} -o jsonpath="{.data.password}" | base64 --decode
+
+{{- end }}
+
+2. Port forward to access Elasticsearch:
+
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "elasticsearch.fullname" . }} 9200:9200
+
+{{- if .Values.elasticsearch.security.enabled }}
+3. Access Elasticsearch at https://localhost:9200 with username: elastic
+{{- else }}
+3. Access Elasticsearch at http://localhost:9200
+{{- end }}
+
+{{- if .Values.kibana.enabled }}
+
+Kibana has been deployed and will be available shortly.
+
+To access Kibana:
+
+1. Port forward to access Kibana:
+
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "kibana.fullname" . }} 5601:5601
+
+2. Access Kibana at http://localhost:5601
+
+{{- if .Values.elasticsearch.security.enabled }}
+3. Login with username: elastic and the password from step 1 above.
+{{- end }}
+
+{{- end }}
+
+{{- if .Values.elasticsearch.ingress.enabled }}
+
+Elasticsearch is accessible via Ingress at:
+{{- range .Values.elasticsearch.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+{{- end }}
+
+{{- if and .Values.kibana.enabled .Values.kibana.ingress.enabled }}
+
+Kibana is accessible via Ingress at:
+{{- range .Values.kibana.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+{{- end }}
+
+For more information about using Elasticsearch and Kibana, visit:
+- Elasticsearch: https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
+- Kibana: https://www.elastic.co/guide/en/kibana/current/index.html

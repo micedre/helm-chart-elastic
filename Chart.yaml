@@ -1,0 +1,18 @@
+apiVersion: v2
+name: elasticsearch
+description: A Helm chart for Elasticsearch and Kibana on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "9.0.0"
+keywords:
+  - elasticsearch
+  - kibana
+  - logging
+  - search
+home: https://github.com/elastic/elasticsearch
+sources:
+  - https://github.com/elastic/elasticsearch
+  - https://github.com/elastic/kibana
+maintainers:
+  - name: Helm Chart Maintainer
+    email: maintainer@example.com

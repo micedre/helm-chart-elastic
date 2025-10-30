@@ -1,0 +1,32 @@
+{{- if .Values.kibana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kibana.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kibana.labels" . | nindent 4 }}
+data:
+  kibana.yml: |
+    # Default Kibana configuration
+    server.host: ${SERVER_HOST}
+    server.name: ${SERVER_NAME}
+
+    # Elasticsearch connection
+    elasticsearch.hosts: ${ELASTICSEARCH_HOSTS}
+    {{- if .Values.elasticsearch.security.enabled }}
+    elasticsearch.username: ${ELASTICSEARCH_USERNAME}
+    elasticsearch.password: ${ELASTICSEARCH_PASSWORD}
+    {{- if .Values.elasticsearch.security.tls.enabled }}
+    elasticsearch.ssl.verificationMode: ${ELASTICSEARCH_SSL_VERIFICATIONMODE}
+    {{- end }}
+    {{- end }}
+
+    # Monitoring
+    monitoring.ui.container.elasticsearch.enabled: true
+
+    # Additional custom configuration
+    {{- with .Values.kibana.config }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

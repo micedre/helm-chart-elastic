@@ -1,0 +1,35 @@
+# Helm chart files
+*.tgz
+charts/
+
+# Backup files
+*.bak
+*.tmp
+*~
+*.orig
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+tmp/
+temp/
+
+# Test outputs
+test-output/
+
+# Local values files (may contain secrets)
+values-local.yaml
+values.local.yaml
+local-values.yaml
+
+# Generated files
+*.lock
+
+# Kubernetes test outputs
+*.yaml.rendered

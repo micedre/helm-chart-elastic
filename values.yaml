@@ -1,0 +1,205 @@
+# Default values for elasticsearch chart
+
+# Elasticsearch configuration
+elasticsearch:
+  # Enable cluster mode (true) or single-node mode (false)
+  clusterMode: true
+
+  # Number of Elasticsearch replicas
+  # For single-node: set to 1
+  # For cluster: recommended 3+ for HA
+  replicas: 3
+
+  # Docker image configuration
+  image:
+    repository: docker.elastic.co/elasticsearch/elasticsearch
+    tag: "9.0.0"
+    pullPolicy: IfNotPresent
+
+  # Service account
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+  # Resource requests and limits
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+
+  # JVM heap size (should be ~50% of memory limit)
+  javaOpts: "-Xms1g -Xmx1g"
+
+  # Persistent storage configuration
+  persistence:
+    enabled: true
+    storageClass: ""  # Leave empty for default storage class
+    accessMode: ReadWriteOnce
+    size: 30Gi
+
+  # Security configuration
+  security:
+    enabled: true
+    # TLS configuration
+    tls:
+      enabled: true
+      # Set to true to use your own certificates
+      # Otherwise, self-signed certificates will be generated
+      useSelfSignedCerts: true
+    # Elasticsearch password (auto-generated if not set)
+    password: ""
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    httpPort: 9200
+    transportPort: 9300
+    annotations: {}
+
+  # Ingress configuration (optional)
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: elasticsearch.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+  # Pod annotations
+  podAnnotations: {}
+
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1000
+    runAsUser: 1000
+
+  # Container security context
+  securityContext:
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  # Node selector
+  nodeSelector: {}
+
+  # Tolerations
+  tolerations: []
+
+  # Affinity and anti-affinity rules
+  affinity:
+    # Enable pod anti-affinity for HA (distributes pods across nodes)
+    podAntiAffinity: soft
+
+  # Additional environment variables
+  extraEnvVars: []
+
+  # Additional volumes
+  extraVolumes: []
+
+  # Additional volume mounts
+  extraVolumeMounts: []
+
+  # Custom elasticsearch.yml configuration
+  # Will be merged with default configuration
+  config: {}
+    # Example:
+    # node.roles: [ master, data, ingest ]
+    # indices.memory.index_buffer_size: 30%
+
+  # Elasticsearch plugins to install
+  plugins: []
+    # Example:
+    # - repository-s3
+    # - analysis-icu
+
+# Kibana configuration
+kibana:
+  # Enable or disable Kibana deployment
+  enabled: true
+
+  # Number of Kibana replicas
+  replicas: 1
+
+  # Docker image configuration
+  image:
+    repository: docker.elastic.co/kibana/kibana
+    tag: "9.0.0"
+    pullPolicy: IfNotPresent
+
+  # Resource requests and limits
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 5601
+    annotations: {}
+
+  # Ingress configuration (optional)
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: kibana.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+  # Pod annotations
+  podAnnotations: {}
+
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1000
+    runAsUser: 1000
+
+  # Container security context
+  securityContext:
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  # Node selector
+  nodeSelector: {}
+
+  # Tolerations
+  tolerations: []
+
+  # Affinity rules
+  affinity: {}
+
+  # Additional environment variables
+  extraEnvVars: []
+
+  # Custom kibana.yml configuration
+  config: {}
+    # Example:
+    # server.publicBaseUrl: "https://kibana.example.com"
+    # logging.quiet: true
+
+# Common labels to apply to all resources
+commonLabels: {}
+
+# Common annotations to apply to all resources
+commonAnnotations: {}
