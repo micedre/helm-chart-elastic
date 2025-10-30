@@ -42,7 +42,7 @@ spec:
       {{- if and .Values.elasticsearch.security.enabled .Values.elasticsearch.security.tls.enabled .Values.elasticsearch.security.tls.useSelfSignedCerts }}
       # Generate self-signed certificates
       - name: generate-certs
-        image: {{ .Values.elasticsearch.image.repository }}:{{ .Values.elasticsearch.image.tag }}
+        image: {{ if .Values.elasticsearch.image.custom.enabled }}{{ .Values.elasticsearch.image.custom.repository }}:{{ .Values.elasticsearch.image.custom.tag }}{{ else }}{{ .Values.elasticsearch.image.repository }}:{{ .Values.elasticsearch.image.tag }}{{ end }}
         command: ['sh', '-c']
         args:
         - |
@@ -60,7 +60,7 @@ spec:
       {{- end }}
       containers:
       - name: elasticsearch
-        image: {{ .Values.elasticsearch.image.repository }}:{{ .Values.elasticsearch.image.tag }}
+        image: {{ if .Values.elasticsearch.image.custom.enabled }}{{ .Values.elasticsearch.image.custom.repository }}:{{ .Values.elasticsearch.image.custom.tag }}{{ else }}{{ .Values.elasticsearch.image.repository }}:{{ .Values.elasticsearch.image.tag }}{{ end }}
         imagePullPolicy: {{ .Values.elasticsearch.image.pullPolicy }}
         securityContext:
           {{- toYaml .Values.elasticsearch.securityContext | nindent 10 }}

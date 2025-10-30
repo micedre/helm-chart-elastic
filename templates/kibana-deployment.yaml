@@ -78,7 +78,7 @@ spec:
         {{- end }}
       containers:
       - name: kibana
-        image: {{ .Values.kibana.image.repository }}:{{ .Values.kibana.image.tag }}
+        image: {{ if .Values.kibana.image.custom.enabled }}{{ .Values.kibana.image.custom.repository }}:{{ .Values.kibana.image.custom.tag }}{{ else }}{{ .Values.kibana.image.repository }}:{{ .Values.kibana.image.tag }}{{ end }}
         imagePullPolicy: {{ .Values.kibana.image.pullPolicy }}
         securityContext:
           {{- toYaml .Values.kibana.securityContext | nindent 10 }}

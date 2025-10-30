@@ -15,6 +15,11 @@ elasticsearch:
     repository: docker.elastic.co/elasticsearch/elasticsearch
     tag: "9.0.0"
     pullPolicy: IfNotPresent
+    # Custom image override (for advanced use cases)
+    custom:
+      enabled: false
+      repository: docker.elastic.co/elasticsearch/elasticsearch
+      tag: "9.0.0"
 
   # Service account
   serviceAccount:
@@ -135,6 +140,11 @@ kibana:
     repository: docker.elastic.co/kibana/kibana
     tag: "9.0.0"
     pullPolicy: IfNotPresent
+    # Custom image override (for advanced use cases)
+    custom:
+      enabled: false
+      repository: docker.elastic.co/kibana/kibana
+      tag: "9.0.0"
 
   # Resource requests and limits
   resources:
