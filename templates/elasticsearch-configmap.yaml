@@ -16,8 +16,8 @@ data:
     network.host: ${network.host}
 
     # Discovery configuration
-    discovery.seed_hosts: ${discovery.seed_hosts}
     {{- if .Values.elasticsearch.clusterMode }}
+    discovery.seed_hosts: ${discovery.seed_hosts}
     cluster.initial_master_nodes: ${cluster.initial_master_nodes}
     {{- else }}
     discovery.type: ${discovery.type}

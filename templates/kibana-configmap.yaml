@@ -25,6 +25,11 @@ data:
     # Monitoring
     monitoring.ui.container.elasticsearch.enabled: true
 
+    # Encryption keys for saved objects (required for alerting and monitoring)
+    xpack.encryptedSavedObjects.encryptionKey: ${XPACK_ENCRYPTION_KEY}
+    xpack.reporting.encryptionKey: ${XPACK_REPORTING_KEY}
+    xpack.security.encryptionKey: ${XPACK_SECURITY_KEY}
+
     # Additional custom configuration
     {{- with .Values.kibana.config }}
     {{- toYaml . | nindent 4 }}

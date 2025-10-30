@@ -28,17 +28,54 @@ spec:
       securityContext:
         {{- toYaml .Values.kibana.podSecurityContext | nindent 8 }}
       initContainers:
-      # Wait for Elasticsearch to be ready
-      - name: wait-for-elasticsearch
-        image: busybox:1.36
+      # Wait for Elasticsearch to be ready and setup kibana_system user
+      - name: setup-kibana-user
+        image: curlimages/curl:8.5.0
         command: ['sh', '-c']
         args:
         - |
-          until nc -z {{ include "elasticsearch.fullname" . }} {{ .Values.elasticsearch.service.httpPort }}; do
+          echo "Waiting for Elasticsearch to be ready..."
+          until curl -sf \
+            {{- if .Values.elasticsearch.security.enabled }}
+            -u "elastic:${ELASTIC_PASSWORD}" \
+            {{- end }}
+            {{- if and .Values.elasticsearch.security.enabled .Values.elasticsearch.security.tls.enabled }}
+            -k https://{{ include "elasticsearch.fullname" . }}:{{ .Values.elasticsearch.service.httpPort }} \
+            {{- else }}
+            http://{{ include "elasticsearch.fullname" . }}:{{ .Values.elasticsearch.service.httpPort }} \
+            {{- end }}
+            > /dev/null 2>&1; do
             echo "Waiting for Elasticsearch..."
             sleep 5
           done
           echo "Elasticsearch is ready!"
+          {{- if .Values.elasticsearch.security.enabled }}
+          echo "Setting up kibana_system user password..."
+          curl -sf -X POST \
+            {{- if .Values.elasticsearch.security.tls.enabled }}
+            -k https://{{ include "elasticsearch.fullname" . }}:{{ .Values.elasticsearch.service.httpPort }}/_security/user/kibana_system/_password \
+            {{- else }}
+            http://{{ include "elasticsearch.fullname" . }}:{{ .Values.elasticsearch.service.httpPort }}/_security/user/kibana_system/_password \
+            {{- end }}
+            -u "elastic:${ELASTIC_PASSWORD}" \
+            -H "Content-Type: application/json" \
+            -d "{\"password\":\"${KIBANA_PASSWORD}\"}"
+          echo ""
+          echo "kibana_system user password set successfully!"
+          {{- end }}
+        env:
+        {{- if .Values.elasticsearch.security.enabled }}
+        - name: ELASTIC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "elasticsearch.fullname" . }}-credentials
+              key: password
+        - name: KIBANA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "elasticsearch.fullname" . }}-credentials
+              key: password
+        {{- end }}
       containers:
       - name: kibana
         image: {{ .Values.kibana.image.repository }}:{{ .Values.kibana.image.tag }}
@@ -64,13 +101,29 @@ spec:
           {{- end }}
         {{- if .Values.elasticsearch.security.enabled }}
         - name: ELASTICSEARCH_USERNAME
-          value: "elastic"
+          value: "kibana_system"
         - name: ELASTICSEARCH_PASSWORD
           valueFrom:
             secretKeyRef:
               name: {{ include "elasticsearch.fullname" . }}-credentials
               key: password
         {{- end }}
+        # Encryption keys for Kibana features
+        - name: XPACK_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "kibana.fullname" . }}-encryption
+              key: encryptionKey
+        - name: XPACK_REPORTING_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "kibana.fullname" . }}-encryption
+              key: reportingKey
+        - name: XPACK_SECURITY_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "kibana.fullname" . }}-encryption
+              key: securityKey
         {{- with .Values.kibana.extraEnvVars }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
