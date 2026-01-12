@@ -63,6 +63,10 @@ spec:
           echo ""
           echo "kibana_system user password set successfully!"
           {{- end }}
+        {{- with .Values.kibana.initContainers.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         env:
         {{- if .Values.elasticsearch.security.enabled }}
         - name: ELASTIC_PASSWORD
@@ -133,22 +137,28 @@ spec:
         - name: config
           mountPath: /usr/share/kibana/config/kibana.yml
           subPath: kibana.yml
+        {{- if .Values.kibana.livenessProbe.enabled }}
         livenessProbe:
           httpGet:
             path: /api/status
             port: 5601
-          initialDelaySeconds: 120
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+          initialDelaySeconds: {{ .Values.kibana.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.kibana.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.kibana.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.kibana.livenessProbe.failureThreshold }}
+          successThreshold: {{ .Values.kibana.livenessProbe.successThreshold }}
+        {{- end }}
+        {{- if .Values.kibana.readinessProbe.enabled }}
         readinessProbe:
           httpGet:
             path: /api/status
             port: 5601
-          initialDelaySeconds: 60
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+          initialDelaySeconds: {{ .Values.kibana.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.kibana.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.kibana.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.kibana.readinessProbe.failureThreshold }}
+          successThreshold: {{ .Values.kibana.readinessProbe.successThreshold }}
+        {{- end }}
       volumes:
       - name: config
         configMap:

@@ -1,0 +1,23 @@
+{{- if .Values.elasticsearch.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: elasticsearch
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.elasticsearch.pdb.minAvailable }}
+  minAvailable: {{ .Values.elasticsearch.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.elasticsearch.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.esSelectorLabels" . | nindent 6 }}
+{{- end }}

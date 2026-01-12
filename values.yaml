@@ -13,13 +13,13 @@ elasticsearch:
   # Docker image configuration
   image:
     repository: docker.elastic.co/elasticsearch/elasticsearch
-    tag: "9.0.0"
+    tag: "9.2.3"
     pullPolicy: IfNotPresent
     # Custom image override (for advanced use cases)
     custom:
       enabled: false
       repository: docker.elastic.co/elasticsearch/elasticsearch
-      tag: "9.0.0"
+      tag: "9.2.3"
 
   # Service account
   serviceAccount:
@@ -55,6 +55,9 @@ elasticsearch:
       # Set to true to use your own certificates
       # Otherwise, self-signed certificates will be generated
       useSelfSignedCerts: true
+      # Use existing secret for certificates (optional)
+      # If set, certificates won't be auto-generated
+      certificatesSecret: ""
     # Elasticsearch password (auto-generated if not set)
     password: ""
 
@@ -105,6 +108,16 @@ elasticsearch:
     # Enable pod anti-affinity for HA (distributes pods across nodes)
     podAntiAffinity: soft
 
+  # Topology spread constraints for better pod distribution across zones
+  topologySpreadConstraints: []
+    # Example for multi-zone distribution:
+    # - maxSkew: 1
+    #   topologyKey: topology.kubernetes.io/zone
+    #   whenUnsatisfiable: DoNotSchedule
+    #   labelSelector:
+    #     matchLabels:
+    #       app.kubernetes.io/component: elasticsearch
+
   # Additional environment variables
   extraEnvVars: []
 
@@ -127,6 +140,62 @@ elasticsearch:
     # - repository-s3
     # - analysis-icu
 
+  # PodDisruptionBudget configuration
+  pdb:
+    enabled: true
+    # Minimum number of pods that must be available
+    # Can be an integer or percentage (e.g., "50%")
+    minAvailable: ""
+    # Maximum number of pods that can be unavailable
+    # Alternative to minAvailable (only set one)
+    maxUnavailable: 1
+
+  # StatefulSet update strategy
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Partition allows for canary deployments
+      partition: 0
+
+  # Graceful termination period (seconds)
+  terminationGracePeriodSeconds: 120
+
+  # Lifecycle hooks for graceful shutdown
+  lifecycle:
+    preStop:
+      enabled: true
+      # Custom preStop command (optional)
+      # If not set, default graceful shutdown command will be used
+      command: []
+
+  # Liveness probe configuration
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 90
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  # Readiness probe configuration
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  # Init containers configuration
+  initContainers:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
 # Kibana configuration
 kibana:
   # Enable or disable Kibana deployment
@@ -138,13 +207,13 @@ kibana:
   # Docker image configuration
   image:
     repository: docker.elastic.co/kibana/kibana
-    tag: "9.0.0"
+    tag: "9.2.3"
     pullPolicy: IfNotPresent
     # Custom image override (for advanced use cases)
     custom:
       enabled: false
       repository: docker.elastic.co/kibana/kibana
-      tag: "9.0.0"
+      tag: "9.2.3"
 
   # Resource requests and limits
   resources:
@@ -207,6 +276,70 @@ kibana:
     # Example:
     # server.publicBaseUrl: "https://kibana.example.com"
     # logging.quiet: true
+
+  # PodDisruptionBudget configuration
+  pdb:
+    enabled: true
+    minAvailable: ""
+    maxUnavailable: 1
+
+  # Liveness probe configuration
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 120
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  # Readiness probe configuration
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  # Init containers configuration
+  initContainers:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+# NetworkPolicy configuration
+networkPolicy:
+  # Enable network policies
+  enabled: false
+  # Allow external access to services
+  allowExternal: true
+  # Allow traffic from specific namespaces
+  ingressNSMatchLabels: {}
+  # Allow traffic from specific pods in those namespaces
+  ingressNSPodMatchLabels: {}
+
+# Prometheus metrics configuration
+metrics:
+  enabled: false
+  serviceMonitor:
+    # Enable ServiceMonitor for Prometheus Operator
+    enabled: false
+    # Namespace to deploy ServiceMonitor (defaults to release namespace)
+    namespace: ""
+    # Scrape interval
+    interval: 30s
+    # Scrape timeout
+    scrapeTimeout: 10s
+    # Additional labels for ServiceMonitor
+    labels: {}
+    # Relabelings
+    relabelings: []
+    # Metric relabelings
+    metricRelabelings: []
 
 # Common labels to apply to all resources
 commonLabels: {}

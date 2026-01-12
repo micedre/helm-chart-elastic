@@ -1,0 +1,475 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Elasticsearch & Kibana",
+  "description": "Deploy an Elasticsearch cluster with Kibana for search and analytics",
+  "properties": {
+    "elasticsearch": {
+      "type": "object",
+      "title": "Elasticsearch",
+      "description": "Elasticsearch cluster configuration",
+      "properties": {
+        "clusterMode": {
+          "type": "boolean",
+          "title": "Cluster Mode",
+          "description": "Enable cluster mode for high availability. Disable for single-node development.",
+          "default": true
+        },
+        "replicas": {
+          "type": "integer",
+          "title": "Number of Nodes",
+          "description": "Number of Elasticsearch nodes. Recommended: 3+ for production clusters.",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "render": "slider",
+          "sliderMin": 1,
+          "sliderMax": 10,
+          "sliderStep": 1
+        },
+        "image": {
+          "type": "object",
+          "title": "Image",
+          "description": "Docker image configuration",
+          "properties": {
+            "tag": {
+              "type": "string",
+              "title": "Version",
+              "description": "Elasticsearch version",
+              "default": "9.2.3",
+              "enum": ["9.2.3", "9.1.9", "9.0.0", "8.19.9", "8.17.0"],
+              "render": "list"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "title": "Resources",
+          "description": "CPU and memory allocation for each Elasticsearch node",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "title": "Requests",
+              "description": "Minimum guaranteed resources",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "title": "CPU",
+                  "description": "CPU cores requested (e.g., 1000m = 1 core)",
+                  "default": "1000m",
+                  "render": "slider",
+                  "sliderMin": 500,
+                  "sliderMax": 8000,
+                  "sliderStep": 500,
+                  "sliderUnit": "m",
+                  "x-onyxia": {
+                    "useRegionSliderConfig": "cpu"
+                  }
+                },
+                "memory": {
+                  "type": "string",
+                  "title": "Memory",
+                  "description": "Memory requested (e.g., 2Gi)",
+                  "default": "2Gi",
+                  "render": "slider",
+                  "sliderMin": 1,
+                  "sliderMax": 32,
+                  "sliderStep": 1,
+                  "sliderUnit": "Gi",
+                  "x-onyxia": {
+                    "useRegionSliderConfig": "memory"
+                  }
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "title": "Limits",
+              "description": "Maximum allowed resources",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "title": "CPU Limit",
+                  "description": "Maximum CPU cores",
+                  "default": "2000m",
+                  "render": "slider",
+                  "sliderMin": 1000,
+                  "sliderMax": 16000,
+                  "sliderStep": 500,
+                  "sliderUnit": "m",
+                  "x-onyxia": {
+                    "useRegionSliderConfig": "cpu"
+                  }
+                },
+                "memory": {
+                  "type": "string",
+                  "title": "Memory Limit",
+                  "description": "Maximum memory",
+                  "default": "4Gi",
+                  "render": "slider",
+                  "sliderMin": 2,
+                  "sliderMax": 64,
+                  "sliderStep": 1,
+                  "sliderUnit": "Gi",
+                  "x-onyxia": {
+                    "useRegionSliderConfig": "memory"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "javaOpts": {
+          "type": "string",
+          "title": "JVM Options",
+          "description": "JVM heap size options. Heap should be ~50% of memory limit.",
+          "default": "-Xms1g -Xmx1g"
+        },
+        "persistence": {
+          "type": "object",
+          "title": "Storage",
+          "description": "Persistent storage configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable Persistence",
+              "description": "Enable persistent storage for data durability",
+              "default": true
+            },
+            "size": {
+              "type": "string",
+              "title": "Storage Size",
+              "description": "Size of persistent volume per node",
+              "default": "30Gi",
+              "render": "slider",
+              "sliderMin": 10,
+              "sliderMax": 500,
+              "sliderStep": 10,
+              "sliderUnit": "Gi"
+            },
+            "storageClass": {
+              "type": "string",
+              "title": "Storage Class",
+              "description": "Kubernetes storage class. Leave empty for default.",
+              "default": "",
+              "x-onyxia": {
+                "overwriteDefaultWith": "{{k8s.storageClassName}}"
+              }
+            }
+          }
+        },
+        "security": {
+          "type": "object",
+          "title": "Security",
+          "description": "Authentication and encryption settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable Security",
+              "description": "Enable X-Pack security (authentication & authorization)",
+              "default": true
+            },
+            "password": {
+              "type": "string",
+              "title": "Elastic Password",
+              "description": "Password for the 'elastic' superuser. Auto-generated if empty.",
+              "default": "",
+              "render": "password",
+              "x-onyxia": {
+                "overwriteDefaultWith": "{{project.password}}"
+              }
+            },
+            "tls": {
+              "type": "object",
+              "title": "TLS",
+              "description": "Transport Layer Security configuration",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "title": "Enable TLS",
+                  "description": "Enable TLS encryption for HTTP and transport layers",
+                  "default": true
+                }
+              }
+            }
+          }
+        },
+        "service": {
+          "type": "object",
+          "title": "Service",
+          "description": "Kubernetes service configuration",
+          "properties": {
+            "type": {
+              "type": "string",
+              "title": "Service Type",
+              "description": "Kubernetes service type",
+              "default": "ClusterIP",
+              "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+              "render": "list"
+            }
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "title": "Ingress",
+          "description": "External access configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable Ingress",
+              "description": "Expose Elasticsearch via ingress",
+              "default": false
+            },
+            "className": {
+              "type": "string",
+              "title": "Ingress Class",
+              "description": "Ingress class name",
+              "default": "",
+              "x-onyxia": {
+                "hidden": true,
+                "overwriteDefaultWith": "{{k8s.ingressClassName}}"
+              }
+            },
+            "hosts": {
+              "type": "array",
+              "title": "Hosts",
+              "description": "Ingress host configuration",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "host": {
+                    "type": "string",
+                    "title": "Hostname",
+                    "description": "Hostname for Elasticsearch access",
+                    "default": "elasticsearch.local",
+                    "x-onyxia": {
+                      "overwriteDefaultWith": "{{project.id}}-elasticsearch.{{k8s.domain}}"
+                    }
+                  }
+                }
+              },
+              "default": [{"host": "elasticsearch.local", "paths": [{"path": "/", "pathType": "Prefix"}]}]
+            }
+          }
+        }
+      }
+    },
+    "kibana": {
+      "type": "object",
+      "title": "Kibana",
+      "description": "Kibana visualization and UI configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Enable Kibana",
+          "description": "Deploy Kibana for data visualization",
+          "default": true
+        },
+        "replicas": {
+          "type": "integer",
+          "title": "Replicas",
+          "description": "Number of Kibana instances",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 5,
+          "render": "slider",
+          "sliderMin": 1,
+          "sliderMax": 5,
+          "sliderStep": 1
+        },
+        "image": {
+          "type": "object",
+          "title": "Image",
+          "description": "Docker image configuration",
+          "properties": {
+            "tag": {
+              "type": "string",
+              "title": "Version",
+              "description": "Kibana version (should match Elasticsearch)",
+              "default": "9.2.3",
+              "enum": ["9.2.3", "9.1.9", "9.0.0", "8.19.9", "8.17.0"],
+              "render": "list"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "title": "Resources",
+          "description": "CPU and memory allocation",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "title": "Requests",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "title": "CPU",
+                  "description": "CPU cores requested",
+                  "default": "500m",
+                  "render": "slider",
+                  "sliderMin": 250,
+                  "sliderMax": 4000,
+                  "sliderStep": 250,
+                  "sliderUnit": "m",
+                  "x-onyxia": {
+                    "useRegionSliderConfig": "cpu"
+                  }
+                },
+                "memory": {
+                  "type": "string",
+                  "title": "Memory",
+                  "description": "Memory requested",
+                  "default": "1Gi",
+                  "render": "slider",
+                  "sliderMin": 512,
+                  "sliderMax": 8192,
+                  "sliderStep": 512,
+                  "sliderUnit": "Mi",
+                  "x-onyxia": {
+                    "useRegionSliderConfig": "memory"
+                  }
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "title": "Limits",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "title": "CPU Limit",
+                  "default": "1000m",
+                  "render": "slider",
+                  "sliderMin": 500,
+                  "sliderMax": 8000,
+                  "sliderStep": 250,
+                  "sliderUnit": "m",
+                  "x-onyxia": {
+                    "useRegionSliderConfig": "cpu"
+                  }
+                },
+                "memory": {
+                  "type": "string",
+                  "title": "Memory Limit",
+                  "default": "2Gi",
+                  "render": "slider",
+                  "sliderMin": 1,
+                  "sliderMax": 16,
+                  "sliderStep": 1,
+                  "sliderUnit": "Gi",
+                  "x-onyxia": {
+                    "useRegionSliderConfig": "memory"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "service": {
+          "type": "object",
+          "title": "Service",
+          "properties": {
+            "type": {
+              "type": "string",
+              "title": "Service Type",
+              "default": "ClusterIP",
+              "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+              "render": "list"
+            }
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "title": "Ingress",
+          "description": "External access configuration for Kibana",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable Ingress",
+              "description": "Expose Kibana via ingress",
+              "default": true
+            },
+            "className": {
+              "type": "string",
+              "title": "Ingress Class",
+              "default": "",
+              "x-onyxia": {
+                "hidden": true,
+                "overwriteDefaultWith": "{{k8s.ingressClassName}}"
+              }
+            },
+            "hosts": {
+              "type": "array",
+              "title": "Hosts",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "host": {
+                    "type": "string",
+                    "title": "Hostname",
+                    "description": "Hostname for Kibana access",
+                    "default": "kibana.local",
+                    "x-onyxia": {
+                      "overwriteDefaultWith": "{{project.id}}-kibana.{{k8s.domain}}"
+                    }
+                  }
+                }
+              },
+              "default": [{"host": "kibana.local", "paths": [{"path": "/", "pathType": "Prefix"}]}]
+            }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "title": "Network Policy",
+      "description": "Network isolation settings",
+      "x-onyxia": {
+        "hidden": true
+      },
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Enable Network Policy",
+          "description": "Enable Kubernetes network policies for isolation",
+          "default": false
+        },
+        "allowExternal": {
+          "type": "boolean",
+          "title": "Allow External Access",
+          "description": "Allow access from outside the cluster",
+          "default": true
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "title": "Monitoring",
+      "description": "Prometheus metrics configuration",
+      "x-onyxia": {
+        "hidden": true
+      },
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Enable Metrics",
+          "description": "Enable Prometheus metrics endpoint",
+          "default": false
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "title": "Service Monitor",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable ServiceMonitor",
+              "description": "Create a Prometheus ServiceMonitor resource",
+              "default": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

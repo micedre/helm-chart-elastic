@@ -3,7 +3,7 @@ name: elasticsearch
 description: A Helm chart for Elasticsearch and Kibana on Kubernetes
 type: application
 version: 0.1.0
-appVersion: "9.0.0"
+appVersion: "9.2.3"
 keywords:
   - elasticsearch
   - kibana

@@ -13,6 +13,12 @@ metadata:
 spec:
   serviceName: {{ include "elasticsearch.masterService" . }}
   replicas: {{ .Values.elasticsearch.replicas }}
+  updateStrategy:
+    type: {{ .Values.elasticsearch.updateStrategy.type | default "RollingUpdate" }}
+    {{- if eq (.Values.elasticsearch.updateStrategy.type | default "RollingUpdate") "RollingUpdate" }}
+    rollingUpdate:
+      partition: {{ .Values.elasticsearch.updateStrategy.rollingUpdate.partition | default 0 }}
+    {{- end }}
   selector:
     matchLabels:
       {{- include "elasticsearch.esSelectorLabels" . | nindent 6 }}
@@ -31,6 +37,7 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.elasticsearch.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.elasticsearch.terminationGracePeriodSeconds | default 120 }}
       initContainers:
       # # Increase vm.max_map_count to 262144 for Elasticsearch
       # - name: configure-sysctl
@@ -51,6 +58,10 @@ spec:
             unzip /tmp/certs.zip -d /usr/share/elasticsearch/config/certs
             chmod -R 755 /usr/share/elasticsearch/config/certs
           fi
+        {{- with .Values.elasticsearch.initContainers.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         volumeMounts:
         - name: elastic-certificates
           mountPath: /usr/share/elasticsearch/config/certs
@@ -135,13 +146,17 @@ spec:
         {{- with .Values.elasticsearch.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- if .Values.elasticsearch.livenessProbe.enabled }}
         livenessProbe:
           tcpSocket:
             port: 9300
-          initialDelaySeconds: 90
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+          initialDelaySeconds: {{ .Values.elasticsearch.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.elasticsearch.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.elasticsearch.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.elasticsearch.livenessProbe.failureThreshold }}
+          successThreshold: {{ .Values.elasticsearch.livenessProbe.successThreshold }}
+        {{- end }}
+        {{- if .Values.elasticsearch.readinessProbe.enabled }}
         readinessProbe:
           {{- if .Values.elasticsearch.security.enabled }}
           exec:
@@ -162,17 +177,50 @@ spec:
             port: 9200
             scheme: HTTP
           {{- end }}
-          initialDelaySeconds: 60
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+          initialDelaySeconds: {{ .Values.elasticsearch.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.elasticsearch.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.elasticsearch.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.elasticsearch.readinessProbe.failureThreshold }}
+          successThreshold: {{ .Values.elasticsearch.readinessProbe.successThreshold }}
+        {{- end }}
+        {{- if .Values.elasticsearch.lifecycle.preStop.enabled }}
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              {{- if .Values.elasticsearch.lifecycle.preStop.command }}
+              {{- toYaml .Values.elasticsearch.lifecycle.preStop.command | nindent 14 }}
+              {{- else }}
+              - /bin/sh
+              - -c
+              - |
+                # Graceful shutdown: exclude node from voting config
+                {{- if .Values.elasticsearch.security.enabled }}
+                curl -sf -u "elastic:${ELASTIC_PASSWORD}" \
+                  {{- if .Values.elasticsearch.security.tls.enabled }}
+                  --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt \
+                  -X POST "https://localhost:9200/_cluster/voting_config_exclusions?node_names=${HOSTNAME}&timeout=1m"
+                  {{- else }}
+                  -X POST "http://localhost:9200/_cluster/voting_config_exclusions?node_names=${HOSTNAME}&timeout=1m"
+                  {{- end }}
+                {{- else }}
+                curl -sf -X POST "http://localhost:9200/_cluster/voting_config_exclusions?node_names=${HOSTNAME}&timeout=1m"
+                {{- end }}
+                sleep 30
+              {{- end }}
+        {{- end }}
       volumes:
       - name: config
         configMap:
           name: {{ include "elasticsearch.fullname" . }}-config
       {{- if and .Values.elasticsearch.security.enabled .Values.elasticsearch.security.tls.enabled }}
       - name: elastic-certificates
+        {{- if .Values.elasticsearch.security.tls.certificatesSecret }}
+        secret:
+          secretName: {{ .Values.elasticsearch.security.tls.certificatesSecret }}
+        {{- else }}
         emptyDir: {}
+        {{- end }}
       - name: cert-config
         configMap:
           name: {{ include "elasticsearch.fullname" . }}-cert-config
@@ -186,6 +234,10 @@ spec:
       {{- end }}
       {{- with .Values.elasticsearch.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.elasticsearch.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- if .Values.elasticsearch.affinity.podAntiAffinity }}
