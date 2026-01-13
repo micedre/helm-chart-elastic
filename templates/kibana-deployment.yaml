@@ -34,34 +34,61 @@ spec:
         command: ['sh', '-c']
         args:
         - |
-          echo "Waiting for Elasticsearch to be ready..."
-          until curl -sf \
+          set -e
+          ES_URL="{{ if and .Values.elasticsearch.security.enabled .Values.elasticsearch.security.tls.enabled }}https{{ else }}http{{ end }}://{{ include "elasticsearch.fullname" . }}:{{ .Values.elasticsearch.service.httpPort }}"
+
+          echo "Waiting for Elasticsearch cluster to be ready..."
+          until curl -s \
             {{- if .Values.elasticsearch.security.enabled }}
             -u "elastic:${ELASTIC_PASSWORD}" \
             {{- end }}
             {{- if and .Values.elasticsearch.security.enabled .Values.elasticsearch.security.tls.enabled }}
-            -k https://{{ include "elasticsearch.fullname" . }}:{{ .Values.elasticsearch.service.httpPort }} \
-            {{- else }}
-            http://{{ include "elasticsearch.fullname" . }}:{{ .Values.elasticsearch.service.httpPort }} \
+            -k \
             {{- end }}
-            > /dev/null 2>&1; do
-            echo "Waiting for Elasticsearch..."
+            "${ES_URL}/_cluster/health?wait_for_status=yellow&timeout=5s" 2>/dev/null | grep -qE '"status":"(green|yellow)"'; do
+            echo "Waiting for Elasticsearch cluster to be yellow/green..."
             sleep 5
           done
-          echo "Elasticsearch is ready!"
+          echo "Elasticsearch cluster is ready!"
+
           {{- if .Values.elasticsearch.security.enabled }}
-          echo "Setting up kibana_system user password..."
-          curl -sf -X POST \
+          echo "Waiting for security API to be ready..."
+          until curl -s -u "elastic:${ELASTIC_PASSWORD}" \
             {{- if .Values.elasticsearch.security.tls.enabled }}
-            -k https://{{ include "elasticsearch.fullname" . }}:{{ .Values.elasticsearch.service.httpPort }}/_security/user/kibana_system/_password \
-            {{- else }}
-            http://{{ include "elasticsearch.fullname" . }}:{{ .Values.elasticsearch.service.httpPort }}/_security/user/kibana_system/_password \
+            -k \
             {{- end }}
-            -u "elastic:${ELASTIC_PASSWORD}" \
-            -H "Content-Type: application/json" \
-            -d "{\"password\":\"${KIBANA_PASSWORD}\"}"
-          echo ""
-          echo "kibana_system user password set successfully!"
+            "${ES_URL}/_security/_authenticate" 2>/dev/null | grep -q '"username"'; do
+            echo "Waiting for security subsystem..."
+            sleep 5
+          done
+          echo "Security API is ready!"
+
+          echo "Setting up kibana_system user password..."
+          echo "Posting to ${ES_URL}/_security/user/kibana_system/_password"
+          MAX_RETRIES=10
+          RETRY=0
+          until [ $RETRY -ge $MAX_RETRIES ]; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+              -u "elastic:${ELASTIC_PASSWORD}" \
+              {{- if .Values.elasticsearch.security.tls.enabled }}
+              -k \
+              {{- end }}
+              -H "Content-Type: application/json" \
+              -d "{\"password\":\"${KIBANA_PASSWORD}\"}" \
+              "${ES_URL}/_security/user/kibana_system/_password")
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "kibana_system password set successfully!"
+              exit 0
+            fi
+
+            RETRY=$((RETRY+1))
+            echo "Attempt $RETRY failed (HTTP $HTTP_CODE), retrying in 5s..."
+            sleep 5
+          done
+
+          echo "ERROR: Failed to set kibana_system password after $MAX_RETRIES attempts"
+          exit 1
           {{- end }}
         {{- with .Values.kibana.initContainers.resources }}
         resources:

@@ -1,14 +1,13 @@
 {{- if .Values.networkPolicy.enabled }}
 ---
-# Elasticsearch NetworkPolicy
+# Primary NetworkPolicy - allows ingress based on 'from' rules
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "elasticsearch.fullname" . }}
+  name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "elasticsearch.labels" . | nindent 4 }}
-    app.kubernetes.io/component: elasticsearch
   {{- with .Values.commonAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -16,79 +15,22 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      {{- include "elasticsearch.esSelectorLabels" . | nindent 6 }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
   policyTypes:
     - Ingress
-    - Egress
   ingress:
-    # Allow inter-node communication (transport layer)
     - from:
-        - podSelector:
-            matchLabels:
-              {{- include "elasticsearch.esSelectorLabels" . | nindent 14 }}
-      ports:
-        - protocol: TCP
-          port: 9300
-    # Allow HTTP access from Kibana
-    {{- if .Values.kibana.enabled }}
-    - from:
-        - podSelector:
-            matchLabels:
-              {{- include "kibana.selectorLabels" . | nindent 14 }}
-      ports:
-        - protocol: TCP
-          port: 9200
-    {{- end }}
-    # Allow external access if enabled
-    {{- if .Values.networkPolicy.allowExternal }}
-    - from: []
-      ports:
-        - protocol: TCP
-          port: 9200
-    {{- end }}
-    # Allow from specific namespaces
-    {{- if .Values.networkPolicy.ingressNSMatchLabels }}
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              {{- toYaml .Values.networkPolicy.ingressNSMatchLabels | nindent 14 }}
-          {{- if .Values.networkPolicy.ingressNSPodMatchLabels }}
-          podSelector:
-            matchLabels:
-              {{- toYaml .Values.networkPolicy.ingressNSPodMatchLabels | nindent 14 }}
-          {{- end }}
-      ports:
-        - protocol: TCP
-          port: 9200
-    {{- end }}
-  egress:
-    # Allow DNS resolution
-    - to: []
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    # Allow inter-node communication
-    - to:
-        - podSelector:
-            matchLabels:
-              {{- include "elasticsearch.esSelectorLabels" . | nindent 14 }}
-      ports:
-        - protocol: TCP
-          port: 9300
-        - protocol: TCP
-          port: 9200
+        {{- toYaml .Values.networkPolicy.from | nindent 8 }}
+{{- if .Values.networkPolicy.ingress }}
 ---
-# Kibana NetworkPolicy
-{{- if .Values.kibana.enabled }}
+# Secondary NetworkPolicy - allows ingress from additional sources (e.g., ingress controller IPs)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "kibana.fullname" . }}
+  name: {{ .Release.Name }}-2
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "kibana.labels" . | nindent 4 }}
+    {{- include "elasticsearch.labels" . | nindent 4 }}
   {{- with .Values.commonAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -96,48 +38,11 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      {{- include "kibana.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
   policyTypes:
     - Ingress
-    - Egress
   ingress:
-    # Allow external access if enabled
-    {{- if .Values.networkPolicy.allowExternal }}
-    - from: []
-      ports:
-        - protocol: TCP
-          port: 5601
-    {{- end }}
-    # Allow from specific namespaces
-    {{- if .Values.networkPolicy.ingressNSMatchLabels }}
     - from:
-        - namespaceSelector:
-            matchLabels:
-              {{- toYaml .Values.networkPolicy.ingressNSMatchLabels | nindent 14 }}
-          {{- if .Values.networkPolicy.ingressNSPodMatchLabels }}
-          podSelector:
-            matchLabels:
-              {{- toYaml .Values.networkPolicy.ingressNSPodMatchLabels | nindent 14 }}
-          {{- end }}
-      ports:
-        - protocol: TCP
-          port: 5601
-    {{- end }}
-  egress:
-    # Allow DNS resolution
-    - to: []
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    # Allow connection to Elasticsearch
-    - to:
-        - podSelector:
-            matchLabels:
-              {{- include "elasticsearch.esSelectorLabels" . | nindent 14 }}
-      ports:
-        - protocol: TCP
-          port: 9200
+        {{- toYaml .Values.networkPolicy.ingress | nindent 8 }}
 {{- end }}
 {{- end }}

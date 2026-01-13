@@ -46,28 +46,43 @@ spec:
       #   securityContext:
       #     privileged: true
       #     runAsUser: 0
-      {{- if and .Values.elasticsearch.security.enabled .Values.elasticsearch.security.tls.enabled .Values.elasticsearch.security.tls.useSelfSignedCerts }}
-      # Generate self-signed certificates
-      - name: generate-certs
-        image: {{ if .Values.elasticsearch.image.custom.enabled }}{{ .Values.elasticsearch.image.custom.repository }}:{{ .Values.elasticsearch.image.custom.tag }}{{ else }}{{ .Values.elasticsearch.image.repository }}:{{ .Values.elasticsearch.image.tag }}{{ end }}
+      {{- if and .Values.elasticsearch.security.enabled .Values.elasticsearch.security.tls.enabled }}
+      # Setup certificates from shared secret
+      - name: setup-certs
+        image: busybox:1.36
         command: ['sh', '-c']
         args:
         - |
-          if [ ! -f /usr/share/elasticsearch/config/certs/elastic-certificates.p12 ]; then
-            bin/elasticsearch-certutil cert --silent --pem --in /tmp/instances.yml -out /tmp/certs.zip
-            unzip /tmp/certs.zip -d /usr/share/elasticsearch/config/certs
-            chmod -R 755 /usr/share/elasticsearch/config/certs
-          fi
+          set -e
+          NODE_NAME=$(cat /etc/hostname)
+          echo "Setting up certificates for node: ${NODE_NAME}"
+
+          # Create directory structure
+          mkdir -p /certs/ca
+          mkdir -p /certs/${NODE_NAME}
+
+          # Copy CA certificate
+          cp /certs-secret/ca.crt /certs/ca/
+          cp /certs-secret/ca.key /certs/ca/ 2>/dev/null || true
+
+          # Copy node-specific certificates
+          cp /certs-secret/${NODE_NAME}.crt /certs/${NODE_NAME}/
+          cp /certs-secret/${NODE_NAME}.key /certs/${NODE_NAME}/
+
+          echo "Certificates setup complete for ${NODE_NAME}"
+          ls -la /certs/
+          ls -la /certs/ca/
+          ls -la /certs/${NODE_NAME}/
         {{- with .Values.elasticsearch.initContainers.resources }}
         resources:
           {{- toYaml . | nindent 10 }}
         {{- end }}
         volumeMounts:
         - name: elastic-certificates
-          mountPath: /usr/share/elasticsearch/config/certs
-        - name: cert-config
-          mountPath: /tmp/instances.yml
-          subPath: instances.yml
+          mountPath: /certs
+        - name: certs-secret
+          mountPath: /certs-secret
+          readOnly: true
       {{- end }}
       containers:
       - name: elasticsearch
@@ -110,14 +125,20 @@ spec:
           value: "true"
         - name: xpack.security.transport.ssl.verification_mode
           value: "certificate"
-        - name: xpack.security.transport.ssl.keystore.path
-          value: "/usr/share/elasticsearch/config/certs/elastic-certificates.p12"
-        - name: xpack.security.transport.ssl.truststore.path
-          value: "/usr/share/elasticsearch/config/certs/elastic-certificates.p12"
+        - name: xpack.security.transport.ssl.key
+          value: "/usr/share/elasticsearch/config/certs/$(node.name)/$(node.name).key"
+        - name: xpack.security.transport.ssl.certificate
+          value: "/usr/share/elasticsearch/config/certs/$(node.name)/$(node.name).crt"
+        - name: xpack.security.transport.ssl.certificate_authorities
+          value: "/usr/share/elasticsearch/config/certs/ca/ca.crt"
         - name: xpack.security.http.ssl.enabled
           value: "true"
-        - name: xpack.security.http.ssl.keystore.path
-          value: "/usr/share/elasticsearch/config/certs/elastic-certificates.p12"
+        - name: xpack.security.http.ssl.key
+          value: "/usr/share/elasticsearch/config/certs/$(node.name)/$(node.name).key"
+        - name: xpack.security.http.ssl.certificate
+          value: "/usr/share/elasticsearch/config/certs/$(node.name)/$(node.name).crt"
+        - name: xpack.security.http.ssl.certificate_authorities
+          value: "/usr/share/elasticsearch/config/certs/ca/ca.crt"
         {{- end }}
         - name: ELASTIC_PASSWORD
           valueFrom:
@@ -215,15 +236,10 @@ spec:
           name: {{ include "elasticsearch.fullname" . }}-config
       {{- if and .Values.elasticsearch.security.enabled .Values.elasticsearch.security.tls.enabled }}
       - name: elastic-certificates
-        {{- if .Values.elasticsearch.security.tls.certificatesSecret }}
-        secret:
-          secretName: {{ .Values.elasticsearch.security.tls.certificatesSecret }}
-        {{- else }}
         emptyDir: {}
-        {{- end }}
-      - name: cert-config
-        configMap:
-          name: {{ include "elasticsearch.fullname" . }}-cert-config
+      - name: certs-secret
+        secret:
+          secretName: {{ .Values.elasticsearch.security.tls.certificatesSecret | default (printf "%s-certs" (include "elasticsearch.fullname" .)) }}
       {{- end }}
       {{- with .Values.elasticsearch.extraVolumes }}
       {{- toYaml . | nindent 6 }}

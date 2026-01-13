@@ -311,16 +311,21 @@ kibana:
         cpu: 500m
         memory: 256Mi
 
-# NetworkPolicy configuration
+# NetworkPolicy configuration (Onyxia-compatible)
 networkPolicy:
   # Enable network policies
   enabled: false
-  # Allow external access to services
-  allowExternal: true
-  # Allow traffic from specific namespaces
-  ingressNSMatchLabels: {}
-  # Allow traffic from specific pods in those namespaces
-  ingressNSPodMatchLabels: {}
+  # Primary ingress rule (typically allow from same namespace)
+  from:
+    - podSelector: {}
+  # Additional ingress rules for external access (e.g., ingress controller IPs)
+  # These will create a secondary network policy
+  ingress: []
+  # Example:
+  # - ipBlock:
+  #     cidr: 10.233.103.0/32
+  # - ipBlock:
+  #     cidr: 10.233.111.0/32
 
 # Prometheus metrics configuration
 metrics:
