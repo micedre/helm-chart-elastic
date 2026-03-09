@@ -14,5 +14,5 @@ sources:
   - https://github.com/elastic/elasticsearch
   - https://github.com/elastic/kibana
 maintainers:
-  - name: Helm Chart Maintainer
-    email: maintainer@example.com
+  - name: SSP Cloud Team
+    url: https://github.com/InseeFrLab

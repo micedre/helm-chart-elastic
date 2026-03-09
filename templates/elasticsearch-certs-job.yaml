@@ -35,7 +35,7 @@ spec:
           bin/elasticsearch-certutil ca --silent --pem -out /tmp/ca.zip
           unzip /tmp/ca.zip -d ${CERTS_DIR}
 
-          echo "Generating node certificates..."
+          echo "Generating wildcard node certificate..."
           bin/elasticsearch-certutil cert --silent --pem \
             --ca-cert ${CERTS_DIR}/ca/ca.crt \
             --ca-key ${CERTS_DIR}/ca/ca.key \
@@ -43,32 +43,87 @@ spec:
             -out /tmp/certs.zip
           unzip /tmp/certs.zip -d ${CERTS_DIR}
 
-          echo "Creating Kubernetes secret..."
-          # Install kubectl
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl
-
-          # Build the secret data
+          echo "Creating/updating Kubernetes secret via in-cluster API..."
+          KUBE_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+          KUBE_CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          KUBE_NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+          KUBE_API="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
           SECRET_NAME="{{ include "elasticsearch.fullname" . }}-certs"
 
-          # Check if secret exists
-          if ./kubectl get secret ${SECRET_NAME} -n {{ .Release.Namespace }} 2>/dev/null; then
-            echo "Secret ${SECRET_NAME} already exists, skipping creation"
-            exit 0
+          # Build secret JSON using Python (available in the ES image)
+          # ca.key is intentionally excluded — it is only needed here during generation
+          python3 - <<'PYEOF'
+          import json, base64, os, sys
+
+          certs_dir = os.environ.get('CERTS_DIR', '/tmp/certs')
+          fullname = "{{ include "elasticsearch.fullname" . }}"
+
+          def b64(path):
+              with open(path, 'rb') as f:
+                  return base64.b64encode(f.read()).decode()
+
+          data = {
+              'ca.crt':   b64(f'{certs_dir}/ca/ca.crt'),
+              'node.crt': b64(f'{certs_dir}/{fullname}-node/{fullname}-node.crt'),
+              'node.key': b64(f'{certs_dir}/{fullname}-node/{fullname}-node.key'),
+          }
+
+          secret = {
+              'apiVersion': 'v1',
+              'kind': 'Secret',
+              'metadata': {
+                  'name': os.environ['SECRET_NAME'],
+                  'namespace': os.environ['KUBE_NS'],
+              },
+              'type': 'Opaque',
+              'data': data,
+          }
+          with open('/tmp/secret.json', 'w') as f:
+              json.dump(secret, f)
+          print('Secret JSON written to /tmp/secret.json')
+          PYEOF
+
+          # Apply the secret (create or replace)
+          HTTP_CODE=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+            --cacert ${KUBE_CA} \
+            -H "Authorization: Bearer ${KUBE_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -X POST "${KUBE_API}/api/v1/namespaces/${KUBE_NS}/secrets" \
+            -d @/tmp/secret.json)
+
+          if [ "${HTTP_CODE}" = "201" ]; then
+            echo "Secret ${SECRET_NAME} created successfully."
+          elif [ "${HTTP_CODE}" = "409" ]; then
+            echo "Secret ${SECRET_NAME} already exists, replacing..."
+            HTTP_CODE=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+              --cacert ${KUBE_CA} \
+              -H "Authorization: Bearer ${KUBE_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -X PUT "${KUBE_API}/api/v1/namespaces/${KUBE_NS}/secrets/${SECRET_NAME}" \
+              -d @/tmp/secret.json)
+            if [ "${HTTP_CODE}" = "200" ]; then
+              echo "Secret ${SECRET_NAME} replaced successfully."
+            else
+              echo "ERROR: Failed to replace secret (HTTP ${HTTP_CODE}):"
+              cat /tmp/resp.txt
+              exit 1
+            fi
+          else
+            echo "ERROR: Failed to create secret (HTTP ${HTTP_CODE}):"
+            cat /tmp/resp.txt
+            exit 1
           fi
 
-          # Create secret from certificate files
-          ./kubectl create secret generic ${SECRET_NAME} \
-            -n {{ .Release.Namespace }} \
-            --from-file=ca.crt=${CERTS_DIR}/ca/ca.crt \
-            --from-file=ca.key=${CERTS_DIR}/ca/ca.key \
-            {{- range $i := until (int .Values.elasticsearch.replicas) }}
-            --from-file={{ include "elasticsearch.fullname" $ }}-{{ $i }}.crt=${CERTS_DIR}/{{ include "elasticsearch.fullname" $ }}-{{ $i }}/{{ include "elasticsearch.fullname" $ }}-{{ $i }}.crt \
-            --from-file={{ include "elasticsearch.fullname" $ }}-{{ $i }}.key=${CERTS_DIR}/{{ include "elasticsearch.fullname" $ }}-{{ $i }}/{{ include "elasticsearch.fullname" $ }}-{{ $i }}.key \
-            {{- end }}
-            --dry-run=client -o yaml | ./kubectl apply -f -
-
           echo "Certificates generated and stored in secret ${SECRET_NAME}"
+        env:
+        - name: SECRET_NAME
+          value: {{ include "elasticsearch.fullname" . }}-certs
+        - name: KUBE_NS
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CERTS_DIR
+          value: /tmp/certs
         volumeMounts:
         - name: cert-config
           mountPath: /tmp/instances.yml

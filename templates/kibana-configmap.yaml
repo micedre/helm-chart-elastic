@@ -19,6 +19,7 @@ data:
     elasticsearch.password: ${ELASTICSEARCH_PASSWORD}
     {{- if .Values.elasticsearch.security.tls.enabled }}
     elasticsearch.ssl.verificationMode: ${ELASTICSEARCH_SSL_VERIFICATIONMODE}
+    elasticsearch.ssl.certificateAuthorities: ${ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES}
     {{- end }}
     {{- end }}
 
