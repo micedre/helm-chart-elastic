@@ -1,5 +1,14 @@
 # Default values for elasticsearch chart
 
+# Override the chart name (affects all resource names)
+nameOverride: ""
+# Override the full release+chart name
+fullnameOverride: ""
+
+# Image pull secrets for private registries
+imagePullSecrets: []
+# - name: my-registry-secret
+
 # Elasticsearch configuration
 elasticsearch:
   # Enable cluster mode (true) or single-node mode (false)
@@ -160,6 +169,21 @@ elasticsearch:
   # Graceful termination period (seconds)
   terminationGracePeriodSeconds: 120
 
+  # Init containers configuration
+  initContainers:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    # sysctl init container: sets vm.max_map_count=262144 required by Elasticsearch.
+    # Requires the node OS to allow sysctl or a privileged container.
+    # Enable only if the cluster does NOT set vm.max_map_count at the node level.
+    sysctlInit:
+      enabled: false
+
   # Lifecycle hooks for graceful shutdown
   lifecycle:
     preStop:
@@ -185,16 +209,6 @@ elasticsearch:
     timeoutSeconds: 5
     failureThreshold: 3
     successThreshold: 1
-
-  # Init containers configuration
-  initContainers:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 256Mi
 
 # Kibana configuration
 kibana:

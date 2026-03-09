@@ -434,12 +434,6 @@
           "title": "Enable Network Policy",
           "description": "Enable Kubernetes network policies for isolation",
           "default": false
-        },
-        "allowExternal": {
-          "type": "boolean",
-          "title": "Allow External Access",
-          "description": "Allow access from outside the cluster",
-          "default": true
         }
       }
     },

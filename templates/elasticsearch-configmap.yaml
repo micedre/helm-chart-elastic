@@ -68,14 +68,13 @@ metadata:
 data:
   instances.yml: |
     instances:
-    {{- range $i := until (int .Values.elasticsearch.replicas) }}
-      - name: {{ include "elasticsearch.fullname" $ }}-{{ $i }}
+      - name: {{ include "elasticsearch.fullname" $ }}-node
         dns:
-          - {{ include "elasticsearch.fullname" $ }}-{{ $i }}.{{ include "elasticsearch.masterService" $ }}.{{ $.Release.Namespace }}.svc.cluster.local
-          - {{ include "elasticsearch.fullname" $ }}-{{ $i }}
+          - "*.{{ include "elasticsearch.masterService" $ }}.{{ $.Release.Namespace }}.svc.cluster.local"
+          - "*.{{ include "elasticsearch.masterService" $ }}"
+          - {{ include "elasticsearch.fullname" $ }}
           - localhost
         ip:
           - 127.0.0.1
-    {{- end }}
 {{- end }}
 {{- end }}
